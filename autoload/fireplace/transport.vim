@@ -170,20 +170,26 @@ augroup END
 
 function! fireplace#transport#connect(arg) abort
   let url = substitute(a:arg, '#.*', '', '')
-  if url =~# '^\d\+$'
-    let url = 'nrepl://localhost:' . url
-  elseif url =~# '^[^:/@]\+\(:\d\+\)\=$'
-    let url = 'nrepl://' . url
-  elseif url !~# '^\a\+://'
-    throw "Fireplace: invalid connection string " . string(a:arg)
+  if url =~# '^nrepl+unix:'
+    let url = url
+  else
+    if url =~# '^\d\+$'
+        let url = 'nrepl://localhost:' . url
+    elseif url =~# '^[^:/@]\+\(:\d\+\)\=$'
+        let url = 'nrepl://' . url
+    elseif url !~# '^\a\+://'
+        throw "Fireplace: invalid connection string " . string(a:arg)
+    endif
+    let url = substitute(url, '^\a\+://[^/]*\zs$', '/', '')
+    let url = substitute(url, '^nrepl://[^/:]*\zs/', ':7888/', '')
   endif
-  let url = substitute(url, '^\a\+://[^/]*\zs$', '/', '')
-  let url = substitute(url, '^nrepl://[^/:]*\zs/', ':7888/', '')
   if has_key(s:urls, url)
     return s:urls[url].transport
   endif
   let scheme = matchstr(url, '^\a\+')
   if scheme ==# 'nrepl'
+    let command = [g:fireplace_python_executable, s:python_dir.'/fireplace.py']
+  elseif scheme ==# 'nrepl+file'
     let command = [g:fireplace_python_executable, s:python_dir.'/fireplace.py']
   elseif exists('g:fireplace_argv_' . scheme)
     let command = g:fireplace_argv_{scheme}
