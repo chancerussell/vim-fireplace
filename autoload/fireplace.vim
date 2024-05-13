@@ -629,7 +629,7 @@ endfunction
 function! fireplace#ConnectCommand(line1, line2, range, bang, mods, arg, args) abort
   let str = get(a:args, 0, '')
   if empty(str)
-    let str = input('Port or URL: ')
+    let str = input('Port, path, or URL: ')
     if empty(str)
       return ''
     endif
@@ -638,7 +638,13 @@ function! fireplace#ConnectCommand(line1, line2, range, bang, mods, arg, args) a
   if str =~# '^[%#]'
     let str = expand(str)
   endif
-  if str !~# '^\d\+$\|:\d\|:[\/][\/]' && filereadable(str)
+
+  " User specified a Unix socket. We need to resolve the name in case it's a
+  " symlink (filereadable handles resolution for the other file cases.)
+  if str !~# '^\d\+$\|:\d\|:[\/][\/]' && getftype(resolve(str)) == 'socket'
+    echom "socket case! '" . str . "'"
+    let path = fnamemodify(exists('b:java_root') ? b:java_root : getcwd(), ':~')
+  elseif str !~# '^\d\+$\|:\d\|:[\/][\/]' && filereadable(str)
     let path = fnamemodify(str, ':p:h')
     let str = readfile(str, '', 1)[0]
   elseif str !~# '^\d\+$\|:\d\|:[\/][\/]' && filereadable(str . '/.nrepl-port')
