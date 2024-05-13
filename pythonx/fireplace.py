@@ -176,13 +176,19 @@ class Connection:
             self.notify(["exception", quickfix(*sys.exc_info())])
             os._exit(3)
 
-def main(host = None, port = None, *args):
+def parse_args(host):
+    port = None
+    match = re.search('//([^:/@]+)(?::(\d+))?', host)
+    if match:
+        host = match.groups()[0]
+        port = match.groups()[1]
+    port = int(port or 7888)
+    return (host,port)
+
+def main(dest = None, *args):
     try:
-        match = re.search('//([^:/@]+)(?::(\d+))?', host)
-        if match:
-            host = match.groups()[0]
-            port = match.groups()[1]
-        conn = Connection(host, int(port or 7888))
+        (host, port) = parse_args(dest)
+        conn = Connection(host, port)
         try:
             conn.tunnel()
         finally:
