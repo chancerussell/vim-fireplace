@@ -2,6 +2,7 @@ import json
 import os
 import re
 import socket
+import stat
 import sys
 import traceback
 import threading
@@ -92,18 +93,48 @@ def quickfix(t, e, tb):
             'text': line})
     return {'title': str(e), 'items': items}
 
+
+def parse_args(host):
+    port = None
+    match = re.search('//([^:/@]+)(?::(\d+))?', host)
+    with open("/tmp/fireplace", "a") as out:
+        out.write(f"yyy dest: '{host}' match: '{match}'\n")
+    if match:
+        host = match.groups()[0]
+        port = match.groups()[1]
+    if not port and os.path.exists(host) and stat.S_ISSOCK(os.stat(host).st_mode):
+        return(host, None, None)
+    else:
+        return (None,host,int(port or 7888))
+
 class Connection:
-    def __init__(self, host, port, keepalive_file=None):
+    def __init__(self, dest, keepalive_file=None):
+        self.unix_socket = False
+        (path, host, port) = parse_args(dest)
+        with open("/tmp/fireplace", "a") as out:
+            out.write(f"yyy dest: '{dest}' path: '{path}' host: '{host}' port: '{port}'\n")
+        if path:
+            self.path = path
+            self.host = None
+            self.port = None
+            self.unix_socket = True
+        else:
+            self.path = None
+            self.host = host
+            self.port = port
         self.keepalive_file = keepalive_file
         self.connected = False
-        self.host = host
-        self.port = int(port)
 
     def socket(self):
         if not self.connected:
-            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            s.settimeout(8)
-            s.connect((self.host, self.port))
+            if self.unix_socket:
+                s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+                s.settimeout(8)
+                s.connect(self.path)
+            else:
+                s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                s.settimeout(8)
+                s.connect((self.host, self.port))
             s.setblocking(1)
             self._socket = s
             self.connected = True
@@ -176,24 +207,17 @@ class Connection:
             self.notify(["exception", quickfix(*sys.exc_info())])
             os._exit(3)
 
-def parse_args(host):
-    port = None
-    match = re.search('//([^:/@]+)(?::(\d+))?', host)
-    if match:
-        host = match.groups()[0]
-        port = match.groups()[1]
-    port = int(port or 7888)
-    return (host,port)
 
 def main(dest = None, *args):
     try:
-        (host, port) = parse_args(dest)
-        conn = Connection(host, port)
+        conn = Connection(dest)
         try:
             conn.tunnel()
         finally:
             conn.close()
-    except Exception:
+    except Exception as e:
+        with open("/tmp/fireplace", "a") as out:
+            out.write(f"exception: {e}")
         json.dump([0, ["exception", quickfix(*sys.exc_info())]], sys.stdout)
         exit(1)
 
