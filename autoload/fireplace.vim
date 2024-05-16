@@ -641,13 +641,14 @@ function! fireplace#ConnectCommand(line1, line2, range, bang, mods, arg, args) a
 
   " User specified a Unix socket. We need to resolve the name in case it's a
   " symlink (filereadable handles resolution for the other file cases.)
-  if str !~# '^\d\+$\|:\d\|:[\/][\/]' && getftype(resolve(str)) == 'socket'
+  let filestring = str !~# '^\d\+$\|:\d\|:[\/][\/]'
+  if filestring && getftype(resolve(str)) == 'socket'
     echom "socket case! '" . str . "'"
     let path = fnamemodify(exists('b:java_root') ? b:java_root : getcwd(), ':~')
-  elseif str !~# '^\d\+$\|:\d\|:[\/][\/]' && filereadable(str)
+  elseif filestring && filereadable(str)
     let path = fnamemodify(str, ':p:h')
     let str = readfile(str, '', 1)[0]
-  elseif str !~# '^\d\+$\|:\d\|:[\/][\/]' && filereadable(str . '/.nrepl-port')
+  elseif filestring && filereadable(str . '/.nrepl-port')
     let path = fnamemodify(str, ':p:h')
     let str = readfile(str . '/.nrepl-port', '', 1)[0]
   else
