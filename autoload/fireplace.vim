@@ -587,8 +587,9 @@ function! fireplace#register_port_file(portfile, ...) abort
   endif
   if empty(old) && getfsize(portfile) > 0
     let port = matchstr(readfile(portfile, 'b', 1)[0], '\d\+')
+    let url = s:build_url(port)
     try
-      let transport = fireplace#transport#connect(port)
+      let transport = fireplace#transport#connect(url, 'nrepl')
       let session = transport.Clone()
       let s:repl_portfiles[portfile] = {
             \ 'time': getftime(portfile),
@@ -626,6 +627,20 @@ function! fireplace#ConnectComplete(A, L, P) abort
   return options
 endfunction
 
+function! s:build_url(arg) abort
+  let url = a:arg
+  if url =~# '^\d\+$'
+    let url = 'nrepl://localhost:' . url
+  elseif url =~# '^[^:/@]\+\(:\d\+\)\=$'
+    let url = 'nrepl://' . url
+  elseif url !~# '^\a\+://'
+    throw "Fireplace: invalid connection string " . string(a:arg)
+  endif
+  let url = substitute(url, '^\a\+://[^/]*\zs$', '/', '')
+  let url = substitute(url, '^nrepl://[^/:]*\zs/', ':7888/', '')
+  return url
+endfunction
+
 function! fireplace#ConnectCommand(line1, line2, range, bang, mods, arg, args) abort
   let str = get(a:args, 0, '')
   if empty(str)
@@ -644,8 +659,13 @@ function! fireplace#ConnectCommand(line1, line2, range, bang, mods, arg, args) a
   let filestring = str !~# '^\d\+$\|:\d\|:[\/][\/]'
   if filestring && getftype(resolve(str)) == 'socket'
     echom "socket case! '" . str . "'"
+    " user specified a unix socket file. Use cwd for the default path, force
+    " connection to nrepl, and pass the string through unchanged.
     let path = fnamemodify(exists('b:java_root') ? b:java_root : getcwd(), ':~')
+    let scheme = 'nrepl'
   else
+    " user specified a URL or a string pointing to a file that contains a
+    " port number. Construct a URL.
     if filestring && filereadable(str)
       let path = fnamemodify(str, ':p:h')
       let str = readfile(str, '', 1)[0]
@@ -655,9 +675,11 @@ function! fireplace#ConnectCommand(line1, line2, range, bang, mods, arg, args) a
     else
       let path = fnamemodify(exists('b:java_root') ? b:java_root : getcwd(), ':~')
     endif
+    let str = s:build_url(str)
+    let scheme = matchstr(str, '^\a\+')
   endif
   try
-    let transport = fireplace#transport#connect(str)
+    let transport = fireplace#transport#connect(str, scheme)
   catch /.*/
     return 'echoerr '.string(v:exception)
   endtry
