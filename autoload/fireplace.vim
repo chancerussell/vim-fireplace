@@ -645,14 +645,16 @@ function! fireplace#ConnectCommand(line1, line2, range, bang, mods, arg, args) a
   if filestring && getftype(resolve(str)) == 'socket'
     echom "socket case! '" . str . "'"
     let path = fnamemodify(exists('b:java_root') ? b:java_root : getcwd(), ':~')
-  elseif filestring && filereadable(str)
-    let path = fnamemodify(str, ':p:h')
-    let str = readfile(str, '', 1)[0]
-  elseif filestring && filereadable(str . '/.nrepl-port')
-    let path = fnamemodify(str, ':p:h')
-    let str = readfile(str . '/.nrepl-port', '', 1)[0]
   else
-    let path = fnamemodify(exists('b:java_root') ? b:java_root : getcwd(), ':~')
+    if filestring && filereadable(str)
+      let path = fnamemodify(str, ':p:h')
+      let str = readfile(str, '', 1)[0]
+    elseif filestring && filereadable(str . '/.nrepl-port')
+      let path = fnamemodify(str, ':p:h')
+      let str = readfile(str . '/.nrepl-port', '', 1)[0]
+    else
+      let path = fnamemodify(exists('b:java_root') ? b:java_root : getcwd(), ':~')
+    endif
   endif
   try
     let transport = fireplace#transport#connect(str)
