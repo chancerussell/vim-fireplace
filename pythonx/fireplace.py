@@ -94,40 +94,32 @@ def quickfix(t, e, tb):
     return {'title': str(e), 'items': items}
 
 
-def parse_args(host):
-    port = None
-    match = re.search('//([^:/@]+)(?::(\d+))?', host)
-    with open("/tmp/fireplace", "a") as out:
-        out.write(f"yyy dest: '{host}' match: '{match}'\n")
-    if match:
+def parse_dest(dest):
+    match = re.search('//([^:/@]+)(?::(\d+))?', dest)
+    if match is not None:
         host = match.groups()[0]
         port = match.groups()[1]
-    if not port and os.path.exists(host) and stat.S_ISSOCK(os.stat(host).st_mode):
-        return(host, None, None)
+        return {"path": None, "host": host, "port": int(port or 7888)}
+    elif os.path.exists(dest) and stat.S_ISSOCK(os.stat(dest).st_mode):
+        return {"path": dest, "host": None, "port": None}
     else:
-        return (None,host,int(port or 7888))
+        raise ValueError("Connection string must be a URL or a path to a socket file")
 
 class Connection:
     def __init__(self, dest, keepalive_file=None):
         self.unix_socket = False
-        (path, host, port) = parse_args(dest)
-        with open("/tmp/fireplace", "a") as out:
-            out.write(f"yyy dest: '{dest}' path: '{path}' host: '{host}' port: '{port}'\n")
-        if path:
-            self.path = path
-            self.host = None
-            self.port = None
-            self.unix_socket = True
-        else:
-            self.path = None
-            self.host = host
-            self.port = port
+        parsed_dest = parse_dest(dest)
+        (path, host, port) = parse_dest(dest)
+        self.path = parsed_dest["path"]
+        self.host = parsed_dest["host"]
+        self.port = parsed_dest["port"]
+        self.unix_socket = True
         self.keepalive_file = keepalive_file
         self.connected = False
 
     def socket(self):
         if not self.connected:
-            if self.unix_socket:
+            if self.path:
                 s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
                 s.settimeout(8)
                 s.connect(self.path)
